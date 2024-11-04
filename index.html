@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS to ASCII Converter</title>
+    <script>
+        function updateAscii() {
+            const url = document.getElementById('urlInput').value;
+            fetch(url)
+                .then(response => response.text())
+                .then(xmlText => {
+					try {
+						const parser = new DOMParser();
+						const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+						const asciiText = xmlToAscii(xmlDoc);
+						document.getElementById('output').value = asciiText;
+					} catch (error) {
+						console.error('Error parsing the XML:', error);
+						document.getElementById('output').value = 'Error parsing the XML.';
+					}
+                })
+                .catch(error => {
+                    console.error('Error fetching the XML:', error);
+                    document.getElementById('output').value = 'Error fetching the XML.';
+                });
+        }
+
+        function xmlToAscii(xmlDoc) {
+			const namedLayers = [];
+			const xWmsCapabilities = xmlDoc.documentElement;
+			const xCapability = xWmsCapabilities.querySelector(":scope > Capability");
+			const xLayers = xCapability ? xCapability.querySelectorAll(":scope > Layer") : [];
+			return printLayers(xLayers, "", namedLayers);
+		}
+		
+		function printLayers(xLayers, prefix, namedLayers) {
+			let output = "";
+			if (xLayers?.length > 0) {
+				for (let i = 0; i < xLayers.length; i++) {
+					console.log(xLayers[i]);
+					output += prefix;
+					const isLast = i == xLayers.length - 1;
+					let childPrefix = prefix;
+					if (isLast) {
+						output += " \u2517 ";
+						childPrefix += "   ";
+					} else {
+						output += " \u2523 ";
+						childPrefix += " \u2503 ";
+					}
+					const layerName = xLayers[i].querySelector(":scope > Name")?.textContent;
+					const layerTitle = xLayers[i].querySelector(":scope > Title")?.textContent;
+					output += getLayerText(layerName, layerTitle);
+					output += "\n";
+					if (layerName?.length > 0) {
+						namedLayers.push(layerName);
+					} else {
+						const xChildLayers = xLayers[i].querySelectorAll(":scope > Layer");
+						output += printLayers(xChildLayers, childPrefix, namedLayers);
+					}
+				}
+			}
+			return output;
+		}
+		
+		function getLayerText(layerName, layerTitle) {
+			let text = "";
+			console.log(layerName, layerTitle);
+			if (layerName?.length > 0 && layerTitle?.length > 0) {
+				text = `${layerName} "${layerTitle}"`;
+			} else if (layerName?.length > 0) {
+				text = layerName;
+			} else if (layerTitle?.length > 0) {
+				text = `"${layerTitle}"`;
+			} else {
+				text = "?";
+			}
+			if (text.length > 60) {
+				text = text.substring(0, 60);
+			}
+			return text;
+		}
+    </script>
+	<style>
+		body {
+			margin: 0px;
+		}
+
+        form {
+            padding: 20px 12px 10px 20px;
+            background: #f7f5f2;
+            border-top-style: solid;
+            border-top-width: 2px;
+            border-top-color: #6a90b6;
+            border-bottom-style: solid;
+            border-bottom-width: 2px;
+            border-bottom-color: #6a90b6;
+            margin: 10px auto;
+            font: 13px Arial, Helvetica, sans-serif;
+        }
+        
+        label {
+            display: block;
+            margin: 0px 0px 15px 0px;
+        }
+        
+        label > span {
+            width: 180px;
+            font-weight: bold;
+            float: left;
+            padding-top: 8px;
+            padding-right: 5px;
+        }
+
+        input {
+            height:20px;
+            width: 80%;
+			margin-bottom: 10px;
+        }
+
+		button {
+            border: none;
+            padding: 8px 15px 8px 15px;
+            background: #6a90b6;
+            color: #fff;
+            box-shadow: 1px 1px 4px #d3e3e3;
+            -moz-box-shadow: 1px 1px 4px #d3e3e3;
+            -webkit-box-shadow: 1px 1px 4px #d3e3e3;
+            border-radius: 3px;
+            -webkit-border-radius: 3px;
+            -moz-border-radius: 3px;
+		}
+
+		button:hover {
+            background: #4370a5;
+            color: #fff;
+		}
+		
+        textarea {
+            height: 100%;
+            width: -webkit-fill-available;
+            margin: 0px 10px;
+        }
+	</style>
+</head>
+<body>
+    <form onsubmit="event.preventDefault(); updateAscii();"">
+        <label for="urlInput">
+			<span>WMS GetCapabilities URL:</span>
+			<input type="url" id="urlInput" name="urlInput" required>
+			<br>
+			<button type="submit">View as ASCII</button>
+			<button type="reset">Clear</button>
+		</label>
+    </form>
+    <textarea id="output" rows="60" cols="80" readonly></textarea>
+</body>
+</html>
